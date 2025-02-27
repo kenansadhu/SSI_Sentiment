@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UPH Student Satisfaction Analysis</title>
+    <!-- Using Bootstrap 5 for styling -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .section-title {
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 0.5rem;
+        }
+        .toggle-btns {
+            margin-bottom: 1.5rem;
+        }
+        .table thead {
+            background-color: #007bff;
+            color: #fff;
+        }
+        .table-striped tbody tr:nth-of-type(odd) {
+            background-color: #f0f5fa;
+        }
+        .card {
+            margin-bottom: 1rem;
+            padding: 1rem;
+        }
+        #filteredSection {
+            display: none; /* hidden by default */
+        }
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <h1 class="mb-4">UPH Student Satisfaction Analysis</h1>
+
+    <!-- If there's no data yet, show upload form -->
+    {% if not df_exists %}
+        <div class="card">
+            <h2 class="section-title">Upload Your Excel File</h2>
+            <form method="POST" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="excel_file" class="form-label">Choose Excel File</label>
+                    <input class="form-control" type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls">
+                </div>
+                <button type="submit" class="btn btn-primary">Upload and Analyze</button>
+            </form>
+        </div>
+    {% else %}
+        <!-- Toggle Buttons -->
+        <div class="toggle-btns">
+            <div class="btn-group" role="group" aria-label="View Toggle">
+                <input type="radio" class="btn-check" name="viewToggle" id="allDataView" autocomplete="off" checked>
+                <label class="btn btn-outline-primary" for="allDataView">All Data</label>
+
+                <input type="radio" class="btn-check" name="viewToggle" id="filteredDataView" autocomplete="off">
+                <label class="btn btn-outline-primary" for="filteredDataView">Filtered Data</label>
+            </div>
+        </div>
+
+        <!-- ALL DATA SECTION -->
+        <div id="allDataSection">
+            <div class="card">
+                <h2 class="section-title">Overall Analysis</h2>
+
+                <!-- Overall Numeric Statistics -->
+                <div class="mb-4">
+                    <h5>Numeric Statistics (All Data)</h5>
+                    {% if overall_stats %}
+                        <div class="table-responsive">
+                            {{ overall_stats|safe }}
+                        </div>
+                    {% else %}
+                        <p>No numeric columns found for analysis.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Overall Sentiment Counts -->
+                <div class="mb-4">
+                    <h5>Sentiment Counts (All Data)</h5>
+                    {% if overall_sentiment_counts %}
+                        <ul>
+                        {% for sentiment_label, count_value in overall_sentiment_counts.items() %}
+                            <li><strong>{{ sentiment_label }}:</strong> {{ count_value }}</li>
+                        {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p>No sentiment analysis performed.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Overall Sentiment Examples -->
+                <div class="mb-4">
+                    <h5>Sample Comments by Sentiment (All Data)</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6>Positive (Top 5 by Polarity)</h6>
+                            {% if pos_examples %}
+                                <div class="table-responsive">
+                                    {{ pos_examples|safe }}
+                                </div>
+                            {% else %}
+                                <p>No positive examples found.</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Negative (Top 5 by Polarity)</h6>
+                            {% if neg_examples %}
+                                <div class="table-responsive">
+                                    {{ neg_examples|safe }}
+                                </div>
+                            {% else %}
+                                <p>No negative examples found.</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Neutral (First 5)</h6>
+                            {% if neu_examples %}
+                                <div class="table-responsive">
+                                    {{ neu_examples|safe }}
+                                </div>
+                            {% else %}
+                                <p>No neutral examples found.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILTERED SECTION -->
+        <div id="filteredSection">
+            <div class="card">
+                <h2 class="section-title">Filter Your Data</h2>
+                <form method="POST" action="/filter" id="filterForm">
+                    <div class="row mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label for="location_input" class="form-label">Location</label>
+                            <select class="form-select" id="location_input" name="location_input">
+                                <option value="">--Select Location--</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="faculty_input" class="form-label">Faculty</label>
+                            <select class="form-select" id="faculty_input" name="faculty_input">
+                                <option value="">--Select Faculty--</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="study_program_input" class="form-label">Study Program</label>
+                            <select class="form-select" id="study_program_input" name="study_program_input">
+                                <option value="">--Select Program--</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Apply Filter</button>
+                    <button type="button" class="btn btn-light" id="clearFilter">Clear Filter</button>
+                </form>
+            </div>
+
+            {% if filter_applied %}
+            <div class="card">
+                <h2 class="section-title">Filtered Analysis</h2>
+
+                <div class="mb-4">
+                    <h5>Filtered Numeric Statistics</h5>
+                    {% if filtered_stats %}
+                        <div class="table-responsive">
+                            {{ filtered_stats|safe }}
+                        </div>
+                    {% else %}
+                        <p>No numeric columns found or no rows after filtering.</p>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <h5>Filtered Sentiment Counts</h5>
+                    {% if filtered_sentiment_counts %}
+                        <ul>
+                        {% for sentiment_label, count_value in filtered_sentiment_counts.items() %}
+                            <li><strong>{{ sentiment_label }}:</strong> {{ count_value }}</li>
+                        {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p>No sentiment analysis performed or no rows after filtering.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Filtered Sentiment Examples -->
+                <div class="mb-4">
+                    <h5>Sample Comments by Sentiment (Filtered)</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6>Positive (Top 5 by Polarity)</h6>
+                            {% if filtered_pos_examples %}
+                                <div class="table-responsive">
+                                    {{ filtered_pos_examples|safe }}
+                                </div>
+                            {% else %}
+                                <p>No positive examples found.</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Negative (Top 5 by Polarity)</h6>
+                            {% if filtered_neg_examples %}
+                                <div class="table-responsive">
+                                    {{ filtered_neg_examples|safe }}
+                                </div>
+                            {% else %}
+                                <p>No negative examples found.</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Neutral (First 5)</h6>
+                            {% if filtered_neu_examples %}
+                                <div class="table-responsive">
+                                    {{ filtered_neu_examples|safe }}
+                                </div>
+                            {% else %}
+                                <p>No neutral examples found.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h5>Filtered Data (Showing up to 50 rows)</h5>
+                    <p>Rows in filtered data: {{ filter_count }}</p>
+                    {% if filtered_df %}
+                        <div class="table-responsive">
+                            {{ filtered_df|safe }}
+                        </div>
+                    {% else %}
+                        <p>No data to display after filtering.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Export Button -->
+                <form method="POST" action="/export">
+                    <input type="hidden" name="location_input" value="{{ request.form.location_input }}">
+                    <input type="hidden" name="faculty_input" value="{{ request.form.faculty_input }}">
+                    <input type="hidden" name="study_program_input" value="{{ request.form.study_program_input }}">
+                    <button type="submit" class="btn btn-success mt-2">
+                        Export Filtered Data
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+<!-- Bootstrap JS (optional) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+
+{% if data_dict %}
+<script>
+/*
+ data_dict = {
+   "Location1": {
+       "FacultyA": ["Prog1", "Prog2"],
+       "FacultyB": ["Prog3"]
+   },
+   "Location2": {
+       "FacultyX": ["ProgY", "ProgZ"],
+       ...
+   }
+ }
+*/
+var dataDict = {{ data_dict|tojson }};
+
+document.addEventListener('DOMContentLoaded', function() {
+  var locationSelect = document.getElementById("location_input");
+  var facultySelect = document.getElementById("faculty_input");
+  var programSelect = document.getElementById("study_program_input");
+  var clearBtn = document.getElementById("clearFilter");
+
+  // Populate the location dropdown
+  var locations = Object.keys(dataDict).sort();
+  locations.forEach(function(loc) {
+    var opt = document.createElement("option");
+    opt.value = loc;
+    opt.text = loc;
+    locationSelect.appendChild(opt);
+  });
+
+  // When location changes, update faculty and program
+  locationSelect.addEventListener('change', function() {
+    var selectedLoc = locationSelect.value;
+    // Reset faculty & program
+    facultySelect.innerHTML = "<option value=''>--Select Faculty--</option>";
+    programSelect.innerHTML = "<option value=''>--Select Program--</option>";
+    
+    if (selectedLoc) {
+      var faculties = Object.keys(dataDict[selectedLoc]).sort();
+      faculties.forEach(function(fac) {
+        var opt = document.createElement("option");
+        opt.value = fac;
+        opt.text = fac;
+        facultySelect.appendChild(opt);
+      });
+    }
+  });
+
+  // When faculty changes, update program
+  facultySelect.addEventListener('change', function() {
+    var selectedLoc = locationSelect.value;
+    var selectedFac = facultySelect.value;
+    programSelect.innerHTML = "<option value=''>--Select Program--</option>";
+    
+    if (selectedLoc && selectedFac) {
+      var programs = dataDict[selectedLoc][selectedFac];
+      programs.sort().forEach(function(prog) {
+        var opt = document.createElement("option");
+        opt.value = prog;
+        opt.text = prog;
+        programSelect.appendChild(opt);
+      });
+    }
+  });
+
+  // Clear Filter button
+  clearBtn.addEventListener('click', function() {
+    locationSelect.value = "";
+    facultySelect.innerHTML = "<option value=''>--Select Faculty--</option>";
+    programSelect.innerHTML = "<option value=''>--Select Program--</option>";
+  });
+});
+</script>
+{% endif %}
+
+<script>
+  // Toggle logic: Show/Hide All Data vs Filtered Data
+  var allDataRadio = document.getElementById("allDataView");
+  var filteredDataRadio = document.getElementById("filteredDataView");
+  var allDataSection = document.getElementById("allDataSection");
+  var filteredSection = document.getElementById("filteredSection");
+
+  allDataRadio.addEventListener("change", function() {
+    if (this.checked) {
+      allDataSection.style.display = "block";
+      filteredSection.style.display = "none";
+    }
+  });
+
+  filteredDataRadio.addEventListener("change", function() {
+    if (this.checked) {
+      allDataSection.style.display = "none";
+      filteredSection.style.display = "block";
+    }
+  });
+</script>
+
+</body>
+</html>
